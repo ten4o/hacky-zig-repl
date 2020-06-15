@@ -1,5 +1,11 @@
 const clap = @import("zig-clap");
 const std = @import("std");
+const readline = @cImport({
+    @cInclude("stdio.h");
+    @cInclude("stdlib.h"); // because of free()
+    @cInclude("readline/readline.h");
+    @cInclude("readline/history.h");
+});
 
 const base64 = std.base64;
 const crypto = std.crypto;
@@ -84,23 +90,24 @@ pub fn main() anyerror!void {
     var last_run_buf = std.ArrayList(u8).init(pa);
     var line_buf = std.ArrayList(u8).init(pa);
     var i: usize = 0;
-    while (true) : (line_buf.shrink(0)) {
+    while (true) {
         const last_run = last_run_buf.items;
         var arena = heap.ArenaAllocator.init(pa);
         defer arena.deinit();
 
         const allocator = &arena.allocator;
 
-        // TODO: proper readline prompt
-        try stdout.writeAll(">> ");
-        stdin.readUntilDelimiterArrayList(&line_buf, '\n', math.maxInt(usize)) catch |err| switch (err) {
-            error.EndOfStream => break,
-            else => |e| return e,
-        };
+        const line_ptr = readline.readline(">> ");
+        if (line_ptr == null)
+            break;
+        defer readline.free(line_ptr);
 
-        const line = mem.trim(u8, line_buf.items, " \t");
+        const line_len = mem.len(line_ptr);
+        const line = mem.trim(u8, line_ptr[0..line_len], " \t");
         if (line.len == 0)
             continue;
+
+        readline.add_history(line_ptr);
 
         const assignment = try fmt.allocPrint(allocator, "const _{} = {};\n", .{ i, line });
 

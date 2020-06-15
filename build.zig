@@ -5,6 +5,8 @@ pub fn build(b: *Builder) void {
     const exe = b.addExecutable("hacky-zig-repl", "src/main.zig");
     exe.addPackagePath("zig-clap", "lib/zig-clap/clap.zig");
     exe.setBuildMode(mode);
+    exe.linkLibC();
+    exe.linkSystemLibrary("readline");
 
     const run_cmd = exe.run();
     const run_step = b.step("run", "Run the app");
