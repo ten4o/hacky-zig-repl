@@ -45,6 +45,7 @@ fn usage(stream: var) !void {
 
 const repl_template =
     \\usingnamespace @import("std");
+    \\fn t(v: var) [] const u8 {{ return @typeName(@TypeOf(v)); }}
     \\pub fn main() !void {{
     \\{}
     \\{}
@@ -107,6 +108,10 @@ pub fn main() anyerror!void {
         if (line.len == 0)
             continue;
 
+        if (mem.eql(u8, line, "ls")) {
+            debug.warn("{}", .{last_run_buf.items});
+            continue;
+        }
         readline.add_history(line_ptr);
 
         const assignment = try fmt.allocPrint(allocator, "const _{} = {};\n", .{ i, line });
