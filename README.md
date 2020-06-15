@@ -46,4 +46,10 @@ var s = "1234";
 const S = struct {a: u32,fn doStuff(p: i32) i32 {return p + 4;}};
 >>
 ```
-There is a builtin convenience function `fn t(v: var) [] const u8 {{ return @typeName(@TypeOf(v)); }}`
+There is a builtin convenience function `fn t(v: var) [] const u8 { return @typeName(@TypeOf(v)); }`
+```
+>> var st = S{ .a = 42 };
+>> t(st)
+_4 = S
+>>
+```
