@@ -22,6 +22,52 @@ const Clap = clap.ComptimeClap(clap.Help, &params);
 const Names = clap.Names;
 const Param = clap.Param(clap.Help);
 
+const Scopes = struct {
+    braces: i32, // {}
+    brakets: i32, // []
+    parentheses: i32, // ()
+    ends_with_semi: bool,
+
+    fn init() Scopes {
+        return Scopes{
+            .ends_with_semi = false,
+            .braces = 0,
+            .brakets = 0,
+            .parentheses = 0,
+        };
+    }
+
+    fn allClosed(self: *Scopes) bool {
+        return (self.parentheses == 0 and self.brakets == 0 and self.braces == 0);
+    }
+
+    fn notClosed(self: *Scopes) bool {
+        return !self.allClosed();
+    }
+
+    fn check(s: *Scopes, line: []const u8) void {
+        s.ends_with_semi = false;
+
+        if (line.len == 0)
+            return;
+
+        const last_ch = line[line.len - 1];
+        if (last_ch == ';')
+            s.ends_with_semi = true;
+
+        for (line) |ch| {
+            switch (ch) {
+                '(' => s.parentheses += 1,
+                ')' => s.parentheses -= 1,
+                '[' => s.brakets += 1,
+                ']' => s.brakets -= 1,
+                '{' => s.braces += 1,
+                '}' => s.braces -= 1,
+                else => {},
+            }
+        }
+    }
+};
 const params = [_]Param{
     clap.parseParam("-h, --help       display this help text and exit                   ") catch unreachable,
     clap.parseParam("-t, --tmp <DIR>  override the folder used to stored temporary files") catch unreachable,
@@ -49,7 +95,8 @@ const repl_template =
     \\pub fn main() !void {{
     \\{}
     \\{}
-    \\    try __repl_print_stdout(_{});
+    \\    if ({})
+    \\        try __repl_print_stdout(_{});
     \\}}
     \\
     \\fn __repl_print_stdout(v: var) !void {{
@@ -88,8 +135,10 @@ pub fn main() anyerror!void {
     const tmp_dir = args.option("--tmp") orelse "/tmp";
     const verbose = args.flag("--verbose");
 
+    var scopes = Scopes.init();
     var last_run_buf = std.ArrayList(u8).init(pa);
-    var line_buf = std.ArrayList(u8).init(pa);
+    var last_statement = std.ArrayList(u8).init(pa);
+    var last_statement_size: usize = 0;
     var i: usize = 0;
     while (true) {
         const last_run = last_run_buf.items;
@@ -114,7 +163,25 @@ pub fn main() anyerror!void {
         }
         readline.add_history(line_ptr);
 
-        const assignment = try fmt.allocPrint(allocator, "const _{} = {};\n", .{ i, line });
+        scopes.check(line);
+
+        try last_statement.appendSlice(line);
+        last_statement_size += 1;
+
+        if (scopes.notClosed()) {
+            continue; // to append lines
+        }
+
+        defer {
+            last_statement.shrink(0);
+            last_statement_size = 0;
+        }
+
+        const is_assign_stmt = !(scopes.ends_with_semi or last_statement_size > 1);
+        const assignment = if (is_assign_stmt)
+            try fmt.allocPrint(allocator, "const _{} = {};", .{ i, line })
+        else
+            last_statement.items;
 
         var crypt_src: [224 / 8]u8 = undefined;
         crypto.Blake2s224.hash(last_run, &crypt_src);
@@ -128,7 +195,7 @@ pub fn main() anyerror!void {
 
         const file = try std.fs.cwd().createFile(file_name, .{});
         defer file.close();
-        try file.outStream().print(repl_template, .{ last_run, assignment, i, i });
+        try file.outStream().print(repl_template, .{ last_run, assignment, is_assign_stmt, i, i });
 
         if (verbose)
             debug.warn("running command '{} run {}'\n", .{ zig_path, file_name });
@@ -138,6 +205,7 @@ pub fn main() anyerror!void {
         };
 
         try last_run_buf.appendSlice(assignment);
+        try last_run_buf.append('\n');
         i += 1;
     }
 }
