@@ -25,7 +25,7 @@ _2 = 1234
 >>
 ```
 If you type a line that ends with  `;` then it's considered a full zig statement:
-`>>> var s = "1234";`
+`>> var s = "1234";`
 
 You can type multi-line statements by opening one of `(`, `[` or `{` and not closing it on the same line. The statement is considered complete when all `(`, `[` and `{` are balanced/closed.
 ```
@@ -46,4 +46,4 @@ var s = "1234";
 const S = struct {a: u32,fn doStuff(p: i32) i32 {return p + 4;}};
 >>
 ```
-There is a builtin convinience function `fn t(v: var) [] const u8 {{ return @typeName(@TypeOf(v)); }}`
+There is a builtin convenience function `fn t(v: var) [] const u8 {{ return @typeName(@TypeOf(v)); }}`
